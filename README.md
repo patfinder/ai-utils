@@ -33,6 +33,9 @@ Writes a `.txt` file next to each image containing its detected text.
 | `--combined FILE` | Also write all results, concatenated, to a single file |
 | `--overwrite` | Overwrite `.txt` files that already exist (default: skip images already processed) |
 | `--delay SECONDS` | Sleep between API calls, to stay under rate limits |
+| `--tile-grid COLSxROWS` | Combine multiple images into one composite per API call (see [Tiling mode](#tiling-mode-cost-saving)) |
+| `--tile-gap PIXELS` | White space between tiled images (default: `20`) |
+| `--tile-max-dim PIXELS` | Max composite width/height; batch aborts if exceeded (default: `15000`) |
 
 ### Examples
 
@@ -46,6 +49,23 @@ Writes a `.txt` file next to each image containing its detected text.
 # Re-run and overwrite previous results, throttling requests
 ./ocr_extract.py ./scans --overwrite --delay 0.2
 ```
+
+## Tiling mode (cost saving)
+
+Cloud Vision bills per **image sent per request** (1 unit), not per request, regardless of that image's resolution. `--tile-grid COLSxROWS` exploits this: it tiles up to `COLS * ROWS` source images into one composite image at native resolution, sends it as a single request, and maps the OCR results back to each original image automatically — so N images can cost as little as `ceil(N / (COLS*ROWS))` units instead of N.
+
+```
+# Tile up to 6 images per request (3 columns x 2 rows)
+./ocr_extract.py ./receipts --tile-grid 3x2
+```
+
+Trade-offs to be aware of:
+
+- **No downscaling** — images are placed at full native size, so accuracy isn't sacrificed, but a big grid of large images can exceed Vision's request size limits. If a batch's composite exceeds `--tile-max-dim`, that batch is skipped with an error — use a smaller grid or raise the limit.
+- **Best for small/uniform images** — works well for things like receipts, ID crops, or screenshots. Very large or high-res source images will hit size limits with fewer tiles per grid cell.
+- **Text mapping is automatic but heuristic** — each detected text block is assigned to whichever source image's region it falls inside (or the nearest one, for stray text landing in the gutter). This is reliable for well-separated tiles but isn't pixel-perfect for adversarial layouts.
+- **Uses `DOCUMENT_TEXT_DETECTION`** internally (needed to get block-level bounding boxes for splitting), rather than `TEXT_DETECTION` used in normal mode — output quality is comparable or better for dense text.
+- All other flags (`-o`, `-r`, `--combined`, `--overwrite`, `--delay`) work the same in tiling mode.
 
 ## Supported formats
 

@@ -232,6 +232,11 @@ def main() -> int:
                 composite_bytes, placements = build_composite(
                     batch_paths, cols, args.tile_gap, args.tile_max_dim
                 )
+                composite_dir = output_dir / "_tile_composites"
+                composite_dir.mkdir(parents=True, exist_ok=True)
+                composite_path = composite_dir / f"tile_batch_{i:03d}.png"
+                composite_path.write_bytes(composite_bytes)
+                print(f"  Composite saved to {composite_path}")
                 texts = extract_tiled_text(client, composite_bytes, placements)
             except Exception as exc:
                 print(f"  Error: {exc}", file=sys.stderr)
